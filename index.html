@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Expense Tracker</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --danger: #ef4444;
+            --success: #10b981;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        /* Grid untuk Form: 4 kolom (Deskripsi lebar, lainnya kecil) */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 15px;
+            align-items: end;
+        }
+
+        /* Grid untuk Statistik: Otomatis menyesuaikan layar */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        /* Responsif untuk HP */
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr; /* Jadi 1 kolom di HP */
+            }
+            .budget-form {
+                flex-direction: column;
+            }
+        }
+
+        /* ===== CSS PENDUKUNG ===== */
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 24px;
+        }
+        header { margin-bottom: 24px; }
+        header p { color: var(--text-muted); }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+        }
+        .card h3 { margin: 0 0 6px; font-size: 14px; color: var(--text-muted); font-weight: 600; }
+        .card .stat-value { margin: 0; font-size: 24px; font-weight: 700; }
+        .card.over { border-color: var(--danger); }
+        .card.over .stat-value { color: var(--danger); }
+
+        .section-title { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+
+        /* Form input uang jajan (posisinya di bawah Sisa Budget) */
+        .budget-form { display: flex; gap: 8px; margin-top: 12px; }
+        .budget-form input {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .hint { margin: 8px 0 0; font-size: 12px; color: var(--text-muted); }
+        .budget-total { margin: 10px 0 0; font-size: 13px; color: var(--text-muted); }
+        .budget-total strong { color: var(--success); }
+
+        /* Baris pemasukan (uang jajan) di tabel */
+        .income-amount { color: var(--success); font-weight: 700; }
+        .badge-income { background: #dcfce7; color: #166534; }
+
+        .form-container, .table-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+        .form-group input, .form-group select {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .btn-primary, .btn-cancel, .action-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-cancel { background: var(--border); color: var(--text-main); display: none; }
+        .action-btn { padding: 6px 10px; font-size: 12px; }
+        .btn-edit { background: var(--primary); color: #fff; }
+        .btn-delete { background: var(--danger); color: #fff; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+        th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .empty-state { text-align: center; color: var(--text-muted); padding: 24px; }
+
+        .badge { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+        .badge-makan { background: #fef3c7; color: #92400e; }
+        .badge-minuman { background: #cffafe; color: #155e75; }
+        .badge-jajan { background: #fce7f3; color: #9d174d; }
+        .badge-transport { background: #dbeafe; color: #1e40af; }
+        .badge-kuota { background: #dcfce7; color: #166534; }
+        .badge-belanja { background: #ede9fe; color: #5b21b6; }
+        .badge-lainnya { background: #e2e8f0; color: #334155; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Student Expense Tracker</h1>
+        <p>Kelola keuangan bulanan Anda...</p>
+    </header>
+
+    <!-- 1. STATISTIK SECTION -->
+    <section class="stats-grid">
+        <div class="card">
+            <h3>Pengeluaran Hari Ini</h3>
+            <p class="stat-value" id="stat-day">Rp0</p>
+        </div>
+        <div class="card">
+            <h3>Pengeluaran Bulan Ini</h3>
+            <p class="stat-value" id="stat-month">Rp0</p>
+        </div>
+        <div class="card" id="card-budget">
+            <h3>Sisa Budget</h3>
+            <p class="stat-value" id="stat-budget">Rp0</p>
+        </div>
+    </section>
+
+    <!-- 2. FORM UANG JAJAN (di bawah Sisa Budget) -->
+    <section class="form-container">
+        <h2 class="section-title">Tambah Uang Jajan</h2>
+        <p class="hint">Nominal yang Anda input akan DITAMBAHKAN ke Sisa Budget dan langsung muncul di riwayat tabel.</p>
+        <form id="budget-form" class="budget-form">
+            <input type="text" id="budget-desc" placeholder="Deskripsi (opsional) - Cth: Dari Ibu">
+            <input type="number" id="budget-input" placeholder="Cth: 50000" min="1" required>
+            <button type="submit" class="btn-primary" id="btn-budget">Tambah</button>
+        </form>
+        <p class="budget-total">Total uang jajan masuk: <strong id="stat-budget-total">Rp0</strong></p>
+    </section>
+
+    <!-- 3. FORM PENGELUARAN SECTION -->
+    <section class="form-container">
+        <form id="expense-form">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="desc">Deskripsi</label>
+                    <input type="text" id="desc" placeholder="Cth: Makan siang" required>
+                </div>
+                <div class="form-group">
+                    <label for="amount">Nominal (Rp)</label>
+                    <input type="number" id="amount" placeholder="50000" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="category">Kategori</label>
+                    <select id="category" required>
+                        <option value="Makan">Makan</option>
+                        <option value="Minuman">Minuman</option>
+                        <option value="Jajan">Jajan</option>
+                        <option value="Transport">Transport</option>
+                        <option value="Kuota">Kuota</option>
+                        <option value="Belanja">Belanja</option>
+                        <option value="Lainnya">Lainnya</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button type="submit" class="btn-primary" id="btn-submit">Tambah</button>
+                    <button type="button" class="btn-cancel" id="btn-cancel">Batal</button>
+                </div>
+            </div>
+
+            <!-- Hidden field untuk menyimpan ID saat mode Edit -->
+            <input type="hidden" id="edit-id">
+        </form>
+    </section>
+
+    <!-- 4. TABLE SECTION (Riwayat pengeluaran & uang jajan masuk) -->
+    <section class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Tanggal</th>
+                    <th>Deskripsi</th>
+                    <th>Kategori</th>
+                    <th>Nominal</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="expense-list">
+                <!-- Default state saat data belum dimuat -->
+                <tr>
+                    <td colspan="5" class="empty-state">Memuat data...</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <script type="module">
+        // 1. IMPOR FUNGSI YANG DIBUTUHKAN DARI CDN
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, getDoc, updateDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // 2. KONFIGURASI FIREBASE (config proyek Anda)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBm8MmviEYdyn7nOl9xXO0XsJWNBBmSbD4",
+            authDomain: "praktikcrud36.firebaseapp.com",
+            projectId: "praktikcrud36",
+            storageBucket: "praktikcrud36.firebasestorage.app",
+            messagingSenderId: "412161820513",
+            appId: "1:412161820513:web:ed55351e6ca37fd40d2720"
+        };
+
+        // 3. INISIALISASI APLIKASI
+        const app = initializeApp(firebaseConfig);
+
+        // 4. INISIALISASI FIRESTORE & REFERENSI KOLEKSI
+        const db = getFirestore(app);
+        const expensesCollection = collection(db, "expenses");
+        const budgetRef = doc(db, "settings", "budget"); // hanya untuk migrasi saldo lama
+
+        console.log("✅ Firebase berhasil dihubungkan!");
+
+        // Format Rupiah
+        const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+
+        // ===== MIGRASI SATU KALI =====
+        // Budget lama yang tersimpan di settings/budget diubah jadi catatan pemasukan awal
+        // supaya angkanya tidak hilang saat sistem baru dipakai.
+        try {
+            const snapBudget = await getDoc(budgetRef);
+            if (snapBudget.exists() && (snapBudget.data().amount || 0) > 0) {
+                await addDoc(expensesCollection, {
+                    type: "income",
+                    description: "Saldo awal uang jajan",
+                    amount: snapBudget.data().amount,
+                    category: "Uang Jajan",
+                    createdAt: serverTimestamp()
+                });
+                await updateDoc(budgetRef, { amount: 0, migrated: true });
+            }
+        } catch (err) {
+            console.warn("Migrasi dilewati:", err);
+        }
+
+        // ===== STATE GLOBAL UNTUK STATISTIK =====
+        let totalBudget = 0;  // Total semua uang jajan masuk (type = income)
+        let totalDay = 0;     // Total pengeluaran HARIAN
+        let totalMonth = 0;   // Total pengeluaran BULANAN
+
+        // Fungsi untuk merender ulang semua kartu statistik
+        function renderStats() {
+            const remaining = totalBudget - totalMonth;
+            document.getElementById('stat-budget-total').textContent = formatRupiah(totalBudget);
+            document.getElementById('stat-day').textContent = formatRupiah(totalDay);
+            document.getElementById('stat-month').textContent = formatRupiah(totalMonth);
+            document.getElementById('stat-budget').textContent = formatRupiah(remaining);
+
+            // Cek defisit
+            const budgetCard = document.getElementById('card-budget');
+            if (remaining < 0) budgetCard.classList.add('over');
+            else budgetCard.classList.remove('over');
+        }
+
+        // ===== 5. LISTENER RIWAYAT (REALTIME: pengeluaran + uang jajan masuk) =====
+        const q = query(expensesCollection, orderBy("createdAt", "desc"));
+
+        onSnapshot(q, (snapshot) => {
+            const list = document.getElementById('expense-list');
+            list.innerHTML = ''; // Kosongkan tabel sebelum render ulang
+
+            totalBudget = 0;
+            totalDay = 0;
+            totalMonth = 0;
+            const now = new Date();
+            const currentMonth = now.getMonth();
+
+            if (snapshot.empty) {
+                list.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada data.</td></tr>';
+            }
+
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const id = docSnap.id;
+                const expDate = data.createdAt?.toDate() || new Date();
+                const isIncome = data.type === "income";
+
+                if (isIncome) {
+                    // Uang jajan masuk => menambah total budget
+                    totalBudget += data.amount;
+                } else {
+                    // Pengeluaran => hitung statistik harian & bulanan
+                    if (expDate.getDate() === now.getDate() &&
+                        expDate.getMonth() === now.getMonth() &&
+                        expDate.getFullYear() === now.getFullYear()) {
+                        totalDay += data.amount;
+                    }
+                    if (expDate.getMonth() === currentMonth) {
+                        totalMonth += data.amount;
+                    }
+                }
+
+                // Render baris tabel
+                const row = document.createElement('tr');
+                if (isIncome) {
+                    // Baris pemasukan: nominal hijau dengan tanda +
+                    row.innerHTML = `
+                        <td>${expDate.toLocaleDateString('id-ID')}</td>
+                        <td>${data.description}</td>
+                        <td><span class="badge badge-income">Uang Jajan</span></td>
+                        <td class="income-amount">+${formatRupiah(data.amount)}</td>
+                        <td>
+                            <button class="action-btn btn-delete" onclick="window.deleteExpense('${id}')">Hapus</button>
+                        </td>
+                    `;
+                } else {
+                    // Baris pengeluaran: seperti biasa
+                    row.innerHTML = `
+                        <td>${expDate.toLocaleDateString('id-ID')}</td>
+                        <td>${data.description}</td>
+                        <td><span class="badge badge-${data.category.toLowerCase()}">${data.category}</span></td>
+                        <td>${formatRupiah(data.amount)}</td>
+                        <td>
+                            <button class="action-btn btn-edit" onclick="window.editExpense('${id}', '${data.description}', ${data.amount}, '${data.category}')">Edit</button>
+                            <button class="action-btn btn-delete" onclick="window.deleteExpense('${id}')">Hapus</button>
+                        </td>
+                    `;
+                }
+                list.appendChild(row);
+            });
+
+            // Update UI Statistik
+            renderStats();
+        });
+
+        // ===== 6. HANDLE FORM UANG JAJAN (langsung masuk ke riwayat/deskripsi) =====
+        document.getElementById('budget-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const amount = Number(document.getElementById('budget-input').value);
+            const desc = document.getElementById('budget-desc').value.trim() || "Uang jajan masuk";
+
+            try {
+                await addDoc(expensesCollection, {
+                    type: "income",
+                    description: desc,
+                    amount: amount,
+                    category: "Uang Jajan",
+                    createdAt: serverTimestamp()
+                });
+                document.getElementById('budget-input').value = '';
+                document.getElementById('budget-desc').value = '';
+            } catch (error) {
+                console.error("Error: ", error);
+                alert("Gagal menyimpan uang jajan.");
+            }
+        });
+
+        // ===== 7. HANDLE FORM SUBMIT (CREATE / UPDATE PENGELUARAN) =====
+        document.getElementById('expense-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const desc = document.getElementById('desc').value;
+            const amount = Number(document.getElementById('amount').value);
+            const category = document.getElementById('category').value;
+            const editId = document.getElementById('edit-id').value;
+
+            try {
+                if (editId) {
+                    // MODE UPDATE
+                    await updateDoc(doc(db, "expenses", editId), {
+                        description: desc, amount: amount, category: category
+                    });
+                } else {
+                    // MODE CREATE
+                    await addDoc(expensesCollection, {
+                        type: "expense",
+                        description: desc, amount: amount, category: category,
+                        createdAt: serverTimestamp()
+                    });
+                }
+                resetForm(); // Bersihkan form setelah sukses
+            } catch (error) {
+                console.error("Error: ", error);
+                alert("Gagal menyimpan data.");
+            }
+        });
+
+        // ===== 8. FUNGSI DELETE (Harus global agar bisa dipanggil onclick di HTML) =====
+        window.deleteExpense = async (id) => {
+            if (confirm("Yakin ingin menghapus data ini?")) {
+                await deleteDoc(doc(db, "expenses", id));
+            }
+        };
+
+        // ===== 9. FUNGSI EDIT (Mengisi form dengan data yang ada) =====
+        window.editExpense = (id, desc, amount, category) => {
+            document.getElementById('desc').value = desc;
+            document.getElementById('amount').value = amount;
+            document.getElementById('category').value = category;
+            document.getElementById('edit-id').value = id; // Kunci mode edit!
+
+            document.getElementById('btn-submit').textContent = 'Update';
+            document.getElementById('btn-cancel').style.display = 'inline-block';
+        };
+
+        // ===== 10. RESET FORM =====
+        function resetForm() {
+            document.getElementById('expense-form').reset();
+            document.getElementById('edit-id').value = '';
+            document.getElementById('btn-submit').textContent = 'Tambah';
+            document.getElementById('btn-cancel').style.display = 'none';
+        }
+
+        document.getElementById('btn-cancel').addEventListener('click', resetForm);
+    </script>
+</body>
+</html>
